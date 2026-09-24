@@ -45,7 +45,7 @@ with `idf.py flash`.
 ### Option A: component manager, from git (recommended)
 
 ```sh
-idf.py add-dependency "esp-transcribe" --git https://github.com/lspr98/conformer-stt-s3.git
+idf.py add-dependency "esp-transcribe" --git https://github.com/pham-tuan-binh/esp-transcribe.git
 ```
 
 or add it to `main/idf_component.yml` yourself:
@@ -53,14 +53,14 @@ or add it to `main/idf_component.yml` yourself:
 ```yaml
 dependencies:
   esp-transcribe:
-    git: https://github.com/lspr98/conformer-stt-s3.git
+    git: https://github.com/pham-tuan-binh/esp-transcribe.git
     version: v1.0.0        # optional: pin a tag, branch or commit
 ```
 
 ### Option B: git submodule
 
 ```sh
-git submodule add https://github.com/lspr98/conformer-stt-s3.git components/esp-transcribe
+git submodule add https://github.com/pham-tuan-binh/esp-transcribe.git components/esp-transcribe
 ```
 
 ### Option C: copy it in

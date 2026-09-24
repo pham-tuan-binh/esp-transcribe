@@ -1,7 +1,7 @@
 version: "1.0.0"
 description: On-device English speech-to-text for the ESP32-S3 (quantized 13M parameter conformer-CTC model)
-url: https://github.com/lspr98/conformer-stt-s3
-repository: https://github.com/lspr98/conformer-stt-s3.git
+url: https://github.com/pham-tuan-binh/esp-transcribe
+repository: https://github.com/pham-tuan-binh/esp-transcribe.git
 license: Apache-2.0
 tags:
   - speech-recognition

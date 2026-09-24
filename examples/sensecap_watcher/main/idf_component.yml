@@ -1,7 +1,7 @@
 dependencies:
   # In your own project, use the git source instead (see the README):
   #   esp-transcribe:
-  #     git: https://github.com/lspr98/conformer-stt-s3.git
+  #     git: https://github.com/pham-tuan-binh/esp-transcribe.git
   esp-transcribe:
     path: ../../..
   # ES7243E microphone ADC

@@ -50,7 +50,8 @@ static const char *TAG = "watcher";
 #define LCD_DATA3     GPIO_NUM_13
 #define LCD_CS        GPIO_NUM_45
 #define LCD_BL        GPIO_NUM_8
-#define LCD_DRAW_ROWS 24 // LVGL draw buffer height, in DMA-capable internal RAM
+#define LCD_DRAW_ROWS 12 // LVGL draw buffer height, in DMA-capable internal RAM, which esp-transcribe
+                         // needs 256KB of: keep this small
 
 static i2c_master_bus_handle_t s_i2c_bus;
 static i2c_master_dev_handle_t s_exp;

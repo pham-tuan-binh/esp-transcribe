@@ -124,6 +124,15 @@ menu "esp-transcribe"
             help
                 Must be lower than the inference priority.
 
+        config ESP_TRANSCRIBE_SESSION_PRIORITY
+            int "Session preprocessing task priority"
+            range 1 23
+            default 2
+            help
+                Priority of the task that preprocesses audio during an
+                esp_transcribe_begin()/push()/finish() session. Keep it below the task
+                that records and pushes the audio, so recording is never delayed.
+
         config ESP_TRANSCRIBE_TASK_STACK_SIZE
             int "Task stack size (bytes)"
             range 4096 32768

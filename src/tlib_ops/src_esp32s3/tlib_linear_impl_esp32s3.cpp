@@ -150,49 +150,49 @@ namespace tlib::ops::impl
         {
         case 0:
             tlib_linear_deq_impl_shift00_esp32s3(a_curr, b, y_curr, k16, n_curr, m);
-            return;
+            break;
         case 1:
             tlib_linear_deq_impl_shift01_esp32s3(a_curr, b, y_curr, k16, n_curr, m);
-            return;
+            break;
         case 2:
             tlib_linear_deq_impl_shift02_esp32s3(a_curr, b, y_curr, k16, n_curr, m);
-            return;
+            break;
         case 3:
             tlib_linear_deq_impl_shift03_esp32s3(a_curr, b, y_curr, k16, n_curr, m);
-            return;
+            break;
         case 4:
             tlib_linear_deq_impl_shift04_esp32s3(a_curr, b, y_curr, k16, n_curr, m);
-            return;
+            break;
         case 5:
             tlib_linear_deq_impl_shift05_esp32s3(a_curr, b, y_curr, k16, n_curr, m);
-            return;
+            break;
         case 6:
             tlib_linear_deq_impl_shift06_esp32s3(a_curr, b, y_curr, k16, n_curr, m);
-            return;
+            break;
         case 7:
             tlib_linear_deq_impl_shift07_esp32s3(a_curr, b, y_curr, k16, n_curr, m);
-            return;
+            break;
         case 8:
             tlib_linear_deq_impl_shift08_esp32s3(a_curr, b, y_curr, k16, n_curr, m);
-            return;
+            break;
         case 9:
             tlib_linear_deq_impl_shift09_esp32s3(a_curr, b, y_curr, k16, n_curr, m);
-            return;
+            break;
         case 10:
             tlib_linear_deq_impl_shift10_esp32s3(a_curr, b, y_curr, k16, n_curr, m);
-            return;
+            break;
         case 11:
             tlib_linear_deq_impl_shift11_esp32s3(a_curr, b, y_curr, k16, n_curr, m);
-            return;
+            break;
         case 12:
             tlib_linear_deq_impl_shift12_esp32s3(a_curr, b, y_curr, k16, n_curr, m);
-            return;
+            break;
         case 13:
             tlib_linear_deq_impl_shift13_esp32s3(a_curr, b, y_curr, k16, n_curr, m);
-            return;
+            break;
         case 14:
             tlib_linear_deq_impl_shift14_esp32s3(a_curr, b, y_curr, k16, n_curr, m);
-            return;
+            break;
         default:
             assert(0);
             break;
@@ -210,49 +210,49 @@ namespace tlib::ops::impl
         {
         case 0:
             tlib_linear_b_deq_impl_shift00_esp32s3(a_curr, b, c, y_curr, k16, n_curr, m);
-            return;
+            break;
         case 1:
             tlib_linear_b_deq_impl_shift01_esp32s3(a_curr, b, c, y_curr, k16, n_curr, m);
-            return;
+            break;
         case 2:
             tlib_linear_b_deq_impl_shift02_esp32s3(a_curr, b, c, y_curr, k16, n_curr, m);
-            return;
+            break;
         case 3:
             tlib_linear_b_deq_impl_shift03_esp32s3(a_curr, b, c, y_curr, k16, n_curr, m);
-            return;
+            break;
         case 4:
             tlib_linear_b_deq_impl_shift04_esp32s3(a_curr, b, c, y_curr, k16, n_curr, m);
-            return;
+            break;
         case 5:
             tlib_linear_b_deq_impl_shift05_esp32s3(a_curr, b, c, y_curr, k16, n_curr, m);
-            return;
+            break;
         case 6:
             tlib_linear_b_deq_impl_shift06_esp32s3(a_curr, b, c, y_curr, k16, n_curr, m);
-            return;
+            break;
         case 7:
             tlib_linear_b_deq_impl_shift07_esp32s3(a_curr, b, c, y_curr, k16, n_curr, m);
-            return;
+            break;
         case 8:
             tlib_linear_b_deq_impl_shift08_esp32s3(a_curr, b, c, y_curr, k16, n_curr, m);
-            return;
+            break;
         case 9:
             tlib_linear_b_deq_impl_shift09_esp32s3(a_curr, b, c, y_curr, k16, n_curr, m);
-            return;
+            break;
         case 10:
             tlib_linear_b_deq_impl_shift10_esp32s3(a_curr, b, c, y_curr, k16, n_curr, m);
-            return;
+            break;
         case 11:
             tlib_linear_b_deq_impl_shift11_esp32s3(a_curr, b, c, y_curr, k16, n_curr, m);
-            return;
+            break;
         case 12:
             tlib_linear_b_deq_impl_shift12_esp32s3(a_curr, b, c, y_curr, k16, n_curr, m);
-            return;
+            break;
         case 13:
             tlib_linear_b_deq_impl_shift13_esp32s3(a_curr, b, c, y_curr, k16, n_curr, m);
-            return;
+            break;
         case 14:
             tlib_linear_b_deq_impl_shift14_esp32s3(a_curr, b, c, y_curr, k16, n_curr, m);
-            return;
+            break;
         default:
             assert(0);
             break;

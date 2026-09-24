@@ -1,5 +1,6 @@
 #include "serial_test.h"
 
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -23,7 +24,6 @@ static SemaphoreHandle_t s_lock;
 static int16_t *s_rec;    // last knob recording
 static size_t s_rec_n;
 static int16_t *s_pcm;    // audio received over serial
-static esp_codec_dev_handle_t s_mic;
 static volatile int64_t s_hold_until; // REC: virtual knob held until this time (us)
 
 bool serial_test_holding(void)
@@ -66,7 +66,7 @@ static int read_line(char *buf, size_t size)
     return n;
 }
 
-static void cmd_pcm(size_t n_samples)
+static void cmd_pcm(size_t n_samples, bool ptt)
 {
     static char text[512];
     if (n_samples == 0 || n_samples > ESP_TRANSCRIBE_MAX_SAMPLES) {
@@ -97,8 +97,26 @@ static void cmd_pcm(size_t n_samples)
     printf("GOT %u bytes, sum %lu, peak %d\n", (unsigned)bytes, (unsigned long)sum, peak);
     fflush(stdout);
 
-    const int64_t start = esp_timer_get_time();
-    const esp_err_t err = transcribe_locked(s_pcm, n_samples, text, sizeof(text));
+    esp_err_t err;
+    int64_t start;
+    if (ptt) {
+        // Push-to-talk path: push 20ms frames in real time, as if someone were talking,
+        // then time only what is left after the "release"
+        err = esp_transcribe_begin();
+        for (size_t i = 0; err == ESP_OK && i < n_samples; i += 320) {
+            err = esp_transcribe_push(s_pcm + i, MIN(320, n_samples - i));
+            vTaskDelay(pdMS_TO_TICKS(20));
+        }
+        start = esp_timer_get_time();
+        if (err == ESP_OK) {
+            err = esp_transcribe_finish(text, sizeof(text));
+        } else {
+            esp_transcribe_cancel();
+        }
+    } else {
+        start = esp_timer_get_time();
+        err = transcribe_locked(s_pcm, n_samples, text, sizeof(text));
+    }
     const float took_s = (esp_timer_get_time() - start) / 1e6f;
     if (err != ESP_OK) {
         printf("ERR %s\n", esp_err_to_name(err));
@@ -133,25 +151,12 @@ static void serial_task(void *arg)
             continue;
         }
         if (strncmp(line, "PCM ", 4) == 0) {
-            cmd_pcm(strtoul(line + 4, NULL, 10));
+            cmd_pcm(strtoul(line + 4, NULL, 10), false);
+        } else if (strncmp(line, "PTT ", 4) == 0) {
+            cmd_pcm(strtoul(line + 4, NULL, 10), true);
         } else if (strncmp(line, "REC ", 4) == 0) {
             s_hold_until = esp_timer_get_time() + 1000LL * strtoul(line + 4, NULL, 10);
             printf("OK\n");
-        } else if (strncmp(line, "CH ", 3) == 0) {
-            esp_codec_dev_sample_info_t fs = {
-                .sample_rate = 16000,
-                .bits_per_sample = 16,
-                .channel = 2,
-                .channel_mask = ESP_CODEC_DEV_MAKE_CHANNEL_MASK(atoi(line + 3) & 1),
-            };
-            float gain = 0;
-            esp_codec_dev_get_in_gain(s_mic, &gain);
-            xSemaphoreTake(s_lock, portMAX_DELAY);
-            esp_codec_dev_close(s_mic);
-            const int ret = esp_codec_dev_open(s_mic, &fs);
-            esp_codec_dev_set_in_gain(s_mic, gain);
-            xSemaphoreGive(s_lock);
-            printf(ret == ESP_CODEC_DEV_OK ? "OK\n" : "ERR open failed\n");
         } else if (strcmp(line, "DUMP") == 0) {
             cmd_dump();
         } else {
@@ -161,14 +166,13 @@ static void serial_task(void *arg)
     }
 }
 
-void serial_test_start(esp_codec_dev_handle_t mic)
+void serial_test_start(void)
 {
-    s_mic = mic;
     s_lock = xSemaphoreCreateMutex();
     s_rec = heap_caps_malloc(ESP_TRANSCRIBE_MAX_SAMPLES * sizeof(int16_t), MALLOC_CAP_SPIRAM);
     s_pcm = heap_caps_malloc(ESP_TRANSCRIBE_MAX_SAMPLES * sizeof(int16_t), MALLOC_CAP_SPIRAM);
     assert(s_lock && s_rec && s_pcm);
-    ESP_ERROR_CHECK(uart_driver_install(UART_PORT, 16 * 1024, 0, 0, NULL, 0));
+    ESP_ERROR_CHECK(uart_driver_install(UART_PORT, 4 * 1024, 0, 0, NULL, 0));
     xTaskCreate(serial_task, "serial_test", 4096, NULL, 4, NULL);
     ESP_LOGI(TAG, "Serial test commands ready (see serial_test.py)");
 }

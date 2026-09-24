@@ -32,6 +32,12 @@
  *         char text[256];
  *         ESP_ERROR_CHECK(esp_transcribe_run(pcm, n_samples, text, sizeof(text)));
  *
+ *  5. Push-to-talk: the same, but preprocessed while you record, so the text is ready sooner:
+ *
+ *         esp_transcribe_begin();
+ *         esp_transcribe_push(pcm, n_samples);   // as audio arrives
+ *         esp_transcribe_finish(text, sizeof(text));
+ *
  * All audio is 16kHz mono int16 PCM.
  */
 #pragma once
@@ -172,6 +178,44 @@ size_t esp_transcribe_feed(const int16_t *pcm, size_t n_samples, uint32_t timeou
  * @param text_size  Size of the output buffer; longer text is truncated
  */
 esp_err_t esp_transcribe_run(const int16_t *pcm, size_t n_samples, char *text, size_t text_size);
+
+/**
+ * Incremental version of esp_transcribe_run(), for push-to-talk: push audio while it
+ * is being recorded, and each complete 360ms chunk is preprocessed in the background.
+ * esp_transcribe_finish() then only has the last chunk and the model left to run, which
+ * saves about 0.5s per second of audio compared to esp_transcribe_run(). Same result.
+ *
+ *     esp_transcribe_begin();
+ *     while (button_held) {
+ *         read_mic(frame, 320);
+ *         esp_transcribe_push(frame, 320);
+ *     }
+ *     esp_transcribe_finish(text, sizeof(text));
+ *
+ * Call begin, push and finish (or cancel) from the same task. The preprocessing task runs
+ * at CONFIG_ESP_TRANSCRIBE_SESSION_PRIORITY, keep the recording task above it.
+ * Not available while a listening pipeline is running.
+ */
+esp_err_t esp_transcribe_begin(void);
+
+/**
+ * Adds 16kHz mono int16 audio to the session. Only blocks if preprocessing falls behind.
+ *
+ * @return ESP_OK, ESP_ERR_INVALID_SIZE if the session would exceed ESP_TRANSCRIBE_MAX_SAMPLES
+ *         (nothing is added), ESP_ERR_INVALID_STATE if no session is running.
+ */
+esp_err_t esp_transcribe_push(const int16_t *pcm, size_t n_samples);
+
+/**
+ * Ends the session and transcribes the audio pushed so far. Blocks until done.
+ *
+ * @return ESP_OK, ESP_ERR_INVALID_SIZE if no audio was pushed (the session is ended),
+ *         ESP_ERR_INVALID_STATE if no session is running.
+ */
+esp_err_t esp_transcribe_finish(char *text, size_t text_size);
+
+/** Ends the session without transcribing. Does nothing if no session is running. */
+void esp_transcribe_cancel(void);
 
 #ifdef __cplusplus
 }

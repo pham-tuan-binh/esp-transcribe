@@ -7,6 +7,7 @@
 #include <cinttypes>
 #include <cstdio>
 #include <cstring>
+#include <functional>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -18,6 +19,7 @@
 #include <esp_log.h>
 #include <esp_partition.h>
 #include <freertos/FreeRTOS.h>
+#include <freertos/queue.h>
 #include <freertos/semphr.h>
 
 #include <config.h>
@@ -170,40 +172,106 @@ namespace
         return ESP_OK;
     }
 
-    struct RunJob
+    // Runs fn on a new task on the inference core, so that it is on a different core than the
+    // co inference task, and waits for it. Anything fn allocates must be freed inside fn.
+    esp_err_t RunOnInferenceCore(const std::function<void(void)> &fn)
     {
-        const int16_t *pcm;
-        size_t n_samples;
-        std::string text;
-        SemaphoreHandle_t done;
-    };
-
-    void RunJobTask(void *arg)
-    {
-        RunJob *job{static_cast<RunJob *>(arg)};
+        struct Job
         {
-            // The preprocessor's window and FFT tables are computed once and kept for later calls
-            if (!run_preprocessor)
-            {
-                run_preprocessor = std::make_unique<conformer::Preprocessor>();
-            }
-
-            tlib::Tensor<int16_t> chunk({kChunkSize}, false, 0);
-            std::vector<tlib::Tensor<float>> pre_enc_chunks;
-            pre_enc_chunks.reserve(kMaxChunks);
-
-            for (size_t offset = 0; offset < job->n_samples; offset += kChunkSize)
-            {
-                const size_t n = std::min<size_t>(kChunkSize, job->n_samples - offset);
-                std::memcpy(chunk.Data(), job->pcm + offset, n * sizeof(int16_t));
-                std::memset(chunk.Data() + n, 0, (kChunkSize - n) * sizeof(int16_t));
-                pre_enc_chunks.push_back(conformer::PreEncode(run_preprocessor->Forward(chunk, kChunkSize)));
-            }
-
-            job->text = TranscribeChunks(pre_enc_chunks);
+            const std::function<void(void)> *fn;
+            SemaphoreHandle_t done;
+        } job{&fn, xSemaphoreCreateBinary()};
+        if (job.done == nullptr)
+        {
+            return ESP_ERR_NO_MEM;
         }
-        xSemaphoreGive(job->done);
+        auto task = [](void *arg) {
+            Job *job{static_cast<Job *>(arg)};
+            (*job->fn)();
+            xSemaphoreGive(job->done);
+            vTaskDelete(nullptr);
+        };
+        if (xTaskCreatePinnedToCore(task, "transcribe_run", kInferenceTaskStackSize, &job,
+                                    kInferenceTaskPriority, nullptr, kInferenceTaskCore) != pdPASS)
+        {
+            vSemaphoreDelete(job.done);
+            return ESP_ERR_NO_MEM;
+        }
+        xSemaphoreTake(job.done, portMAX_DELAY);
+        vSemaphoreDelete(job.done);
+        return ESP_OK;
+    }
+
+    // The preprocessor's window and FFT tables are computed once and kept for later calls
+    conformer::Preprocessor &RunPreprocessor(void)
+    {
+        if (!run_preprocessor)
+        {
+            run_preprocessor = std::make_unique<conformer::Preprocessor>();
+        }
+        return *run_preprocessor;
+    }
+
+    // Incremental transcription (esp_transcribe_begin/push/finish). Audio is split into
+    // independent chunks, so each chunk is preprocessed and pre-encoded on a worker task as
+    // soon as it is complete, while the caller is still recording. Same result as
+    // esp_transcribe_run() on the whole buffer.
+    struct Session
+    {
+        std::array<int16_t *, 2> buffers{}; // Filled by push, handed to the worker in turn
+        uint8_t current{0};                 // Buffer that push is filling
+        size_t fill{0};                     // Samples in the current buffer
+        size_t total{0};                    // Samples pushed so far
+        QueueHandle_t queue{nullptr};       // Buffer index to pre-encode, or kSessionEnd
+        SemaphoreHandle_t free_buffers{nullptr};
+        SemaphoreHandle_t done{nullptr};
+        std::vector<tlib::Tensor<float>> pre_enc_chunks;
+        tlib::Tensor<int16_t> chunk; // Worker's input chunk
+
+        ~Session()
+        {
+            for (int16_t *buffer : buffers)
+            {
+                heap_caps_free(buffer);
+            }
+            if (queue != nullptr)
+            {
+                vQueueDelete(queue);
+            }
+            if (free_buffers != nullptr)
+            {
+                vSemaphoreDelete(free_buffers);
+            }
+            if (done != nullptr)
+            {
+                vSemaphoreDelete(done);
+            }
+        }
+    };
+    constexpr int kSessionEnd{-1};
+    std::unique_ptr<Session> session;
+
+    void SessionTask(void *arg)
+    {
+        Session *s{static_cast<Session *>(arg)};
+        {
+            int index{};
+            while (xQueueReceive(s->queue, &index, portMAX_DELAY) == pdTRUE && index != kSessionEnd)
+            {
+                std::memcpy(s->chunk.Data(), s->buffers[index], kChunkSize * sizeof(int16_t));
+                xSemaphoreGive(s->free_buffers);
+                s->pre_enc_chunks.push_back(conformer::PreEncode(RunPreprocessor().Forward(s->chunk, kChunkSize)));
+            }
+        }
+        xSemaphoreGive(s->done);
         vTaskDelete(nullptr);
+    }
+
+    // Stops the worker once it has pre-encoded everything queued
+    void StopSessionTask(Session &s)
+    {
+        xQueueSend(s.queue, &kSessionEnd, portMAX_DELAY);
+        xSemaphoreTake(s.done, portMAX_DELAY);
     }
 
 } // namespace
@@ -223,7 +291,7 @@ extern "C" esp_err_t esp_transcribe_start_mic(const esp_transcribe_config_t *cfg
     }
 
     std::lock_guard lock{mutex};
-    if (pipeline_started)
+    if (pipeline_started || session)
     {
         ESP_LOGE(kTag, "Listening pipeline already running");
         return ESP_ERR_INVALID_STATE;
@@ -245,7 +313,7 @@ extern "C" esp_err_t esp_transcribe_start_stream(const esp_transcribe_config_t *
     }
 
     std::lock_guard lock{mutex};
-    if (pipeline_started)
+    if (pipeline_started || session)
     {
         ESP_LOGE(kTag, "Listening pipeline already running");
         return ESP_ERR_INVALID_STATE;
@@ -278,7 +346,7 @@ extern "C" esp_err_t esp_transcribe_start_codec_dev(const esp_transcribe_codec_d
     }
 
     std::lock_guard lock{mutex};
-    if (pipeline_started)
+    if (pipeline_started || session)
     {
         ESP_LOGE(kTag, "Listening pipeline already running");
         return ESP_ERR_INVALID_STATE;
@@ -324,28 +392,142 @@ extern "C" esp_err_t esp_transcribe_run(const int16_t *pcm, size_t n_samples, ch
     }
 
     std::lock_guard lock{mutex};
-    if (pipeline_started)
+    if (pipeline_started || session)
     {
-        ESP_LOGE(kTag, "esp_transcribe_run is not available while a listening pipeline is running");
+        ESP_LOGE(kTag, "esp_transcribe_run is not available while a listening pipeline or session is running");
         return ESP_ERR_INVALID_STATE;
     }
     ESP_RETURN_ON_ERROR(InitLocked(), kTag, "Init failed");
 
-    // Inference runs on its own task so that it is on a different core than the co inference task.
-    RunJob job{pcm, n_samples, {}, xSemaphoreCreateBinary()};
-    if (job.done == nullptr)
-    {
-        return ESP_ERR_NO_MEM;
-    }
-    if (xTaskCreatePinnedToCore(RunJobTask, "transcribe_run", kInferenceTaskStackSize, &job,
-                                kInferenceTaskPriority, nullptr, kInferenceTaskCore) != pdPASS)
-    {
-        vSemaphoreDelete(job.done);
-        return ESP_ERR_NO_MEM;
-    }
-    xSemaphoreTake(job.done, portMAX_DELAY);
-    vSemaphoreDelete(job.done);
+    std::string transcription;
+    ESP_RETURN_ON_ERROR(RunOnInferenceCore([&] {
+        tlib::Tensor<int16_t> chunk({kChunkSize}, false, 0);
+        std::vector<tlib::Tensor<float>> pre_enc_chunks;
+        pre_enc_chunks.reserve(kMaxChunks);
 
-    std::snprintf(text, text_size, "%s", job.text.c_str());
+        for (size_t offset = 0; offset < n_samples; offset += kChunkSize)
+        {
+            const size_t n = std::min<size_t>(kChunkSize, n_samples - offset);
+            std::memcpy(chunk.Data(), pcm + offset, n * sizeof(int16_t));
+            std::memset(chunk.Data() + n, 0, (kChunkSize - n) * sizeof(int16_t));
+            pre_enc_chunks.push_back(conformer::PreEncode(RunPreprocessor().Forward(chunk, kChunkSize)));
+        }
+        transcription = TranscribeChunks(pre_enc_chunks);
+    }), kTag, "Could not start the inference task");
+
+    std::snprintf(text, text_size, "%s", transcription.c_str());
     return ESP_OK;
+}
+
+extern "C" esp_err_t esp_transcribe_begin(void)
+{
+    std::lock_guard lock{mutex};
+    if (pipeline_started || session)
+    {
+        ESP_LOGE(kTag, "esp_transcribe_begin: a listening pipeline or session is already running");
+        return ESP_ERR_INVALID_STATE;
+    }
+    ESP_RETURN_ON_ERROR(InitLocked(), kTag, "Init failed");
+
+    auto s = std::make_unique<Session>();
+    for (int16_t *&buffer : s->buffers)
+    {
+        buffer = static_cast<int16_t *>(heap_caps_malloc(kChunkSize * sizeof(int16_t), MALLOC_CAP_SPIRAM));
+    }
+    s->queue = xQueueCreate(s->buffers.size() + 1, sizeof(int));
+    s->free_buffers = xSemaphoreCreateCounting(s->buffers.size(), s->buffers.size());
+    s->done = xSemaphoreCreateBinary();
+    if (s->buffers[0] == nullptr || s->buffers[1] == nullptr || s->queue == nullptr ||
+        s->free_buffers == nullptr || s->done == nullptr)
+    {
+        return ESP_ERR_NO_MEM;
+    }
+    s->pre_enc_chunks.reserve(kMaxChunks);
+    // Allocated first and kept until the session ends, same heap layout as esp_transcribe_run()
+    s->chunk = tlib::Tensor<int16_t>({kChunkSize}, false, 0);
+    xSemaphoreTake(s->free_buffers, 0); // buffers[0] is being filled
+
+    if (xTaskCreatePinnedToCore(SessionTask, "transcribe_pre", kInferenceTaskStackSize, s.get(),
+                                CONFIG_ESP_TRANSCRIBE_SESSION_PRIORITY, nullptr, kInferenceTaskCore) != pdPASS)
+    {
+        return ESP_ERR_NO_MEM;
+    }
+    session = std::move(s);
+    return ESP_OK;
+}
+
+extern "C" esp_err_t esp_transcribe_push(const int16_t *pcm, size_t n_samples)
+{
+    // Called from the task that called esp_transcribe_begin(), no locking needed
+    if (!session)
+    {
+        return ESP_ERR_INVALID_STATE;
+    }
+    Session &s{*session};
+    if (pcm == nullptr || s.total + n_samples > ESP_TRANSCRIBE_MAX_SAMPLES)
+    {
+        return pcm == nullptr ? ESP_ERR_INVALID_ARG : ESP_ERR_INVALID_SIZE;
+    }
+    while (n_samples > 0)
+    {
+        const size_t n = std::min<size_t>(n_samples, kChunkSize - s.fill);
+        std::memcpy(s.buffers[s.current] + s.fill, pcm, n * sizeof(int16_t));
+        s.fill += n;
+        s.total += n;
+        pcm += n;
+        n_samples -= n;
+        if (s.fill == kChunkSize)
+        {
+            const int index{s.current};
+            xQueueSend(s.queue, &index, portMAX_DELAY);
+            xSemaphoreTake(s.free_buffers, portMAX_DELAY); // Only waits if the worker falls behind
+            s.current ^= 1;
+            s.fill = 0;
+        }
+    }
+    return ESP_OK;
+}
+
+extern "C" esp_err_t esp_transcribe_finish(char *text, size_t text_size)
+{
+    if (text == nullptr || text_size == 0)
+    {
+        return ESP_ERR_INVALID_ARG;
+    }
+    std::lock_guard lock{mutex};
+    if (!session)
+    {
+        return ESP_ERR_INVALID_STATE;
+    }
+    std::unique_ptr<Session> s{std::move(session)};
+    if (s->total == 0)
+    {
+        StopSessionTask(*s);
+        return ESP_ERR_INVALID_SIZE;
+    }
+
+    // The last, partial chunk is zero-padded
+    if (s->fill > 0)
+    {
+        std::memset(s->buffers[s->current] + s->fill, 0, (kChunkSize - s->fill) * sizeof(int16_t));
+        const int index{s->current};
+        xQueueSend(s->queue, &index, portMAX_DELAY);
+    }
+    StopSessionTask(*s);
+
+    std::string transcription;
+    ESP_RETURN_ON_ERROR(RunOnInferenceCore([&] { transcription = TranscribeChunks(s->pre_enc_chunks); }),
+                        kTag, "Could not start the inference task");
+    std::snprintf(text, text_size, "%s", transcription.c_str());
+    return ESP_OK;
+}
+
+extern "C" void esp_transcribe_cancel(void)
+{
+    std::lock_guard lock{mutex};
+    if (session)
+    {
+        StopSessionTask(*session);
+        session.reset();
+    }
 }

@@ -9,4 +9,4 @@ dependencies:
   # 412x412 round QSPI display
   espressif/esp_lcd_spd2010: "^2.0.0"
   espressif/esp_lvgl_port: "^2.6.0"
-  lvgl/lvgl: "^9.2.0"
+  lvgl/lvgl: "^9.6.0"

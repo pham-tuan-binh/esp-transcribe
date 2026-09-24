@@ -1,0 +1,21 @@
+# Recommended settings for esp-transcribe. Copy these lines into your project's
+# sdkconfig.defaults (then delete sdkconfig and rebuild), see README.
+CONFIG_IDF_TARGET="esp32s3"
+
+# 16MB flash with the bundled partition table. The path assumes the component manager
+# install; use "components/esp-transcribe/partitions/16MB.csv" for a submodule/copy.
+CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y
+CONFIG_ESPTOOLPY_FLASHFREQ_80M=y
+CONFIG_PARTITION_TABLE_CUSTOM=y
+CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="managed_components/esp-transcribe/partitions/16MB.csv"
+
+# Octal PSRAM (XIAO ESP32-S3 Plus, ESP32-S3-DevKitC-1 N*R8/N*R16).
+# Use CONFIG_SPIRAM_MODE_QUAD=y instead for boards with quad PSRAM.
+CONFIG_SPIRAM=y
+CONFIG_SPIRAM_MODE_OCT=y
+CONFIG_SPIRAM_SPEED_80M=y
+
+# Speed
+CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_240=y
+CONFIG_COMPILER_OPTIMIZATION_PERF=y
+CONFIG_ESP32S3_DATA_CACHE_32KB=y

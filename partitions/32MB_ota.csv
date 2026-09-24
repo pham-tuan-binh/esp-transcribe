@@ -1,0 +1,9 @@
+# esp-transcribe partition table for 32MB flash: two 4MB OTA app slots + 14MB model.
+# The model partition is not touched by OTA updates of the app.
+# Name,   Type, SubType,   Offset,  Size,  Flags
+nvs,      data, nvs,       0x9000,  0x4000,
+otadata,  data, ota,       0xd000,  0x2000,
+phy_init, data, phy,       0xf000,  0x1000,
+ota_0,    app,  ota_0,     0x10000, 4M,
+ota_1,    app,  ota_1,     ,        4M,
+model,    data, undefined, ,        14M,

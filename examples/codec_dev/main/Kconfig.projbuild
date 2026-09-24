@@ -1,0 +1,23 @@
+menu "esp-transcribe example"
+
+    config EXAMPLE_CODEC_BOARD_TYPE
+        string "Codec board type"
+        default "S3_Korvo_V2"
+        help
+            Your dev board, as named in board_cfg.txt of the tempotian/codec_board
+            component (e.g. S3_Korvo_V2, ESP32_S3_BOX_3, ESP32S3_EYE, XIAO_ESP32S3_Sense).
+
+    config EXAMPLE_MIC_CHANNELS
+        int "Microphone channels"
+        range 1 4
+        default 1
+        help
+            Interleaved channels the board's record device delivers. Use 4 for
+            boards with an ES7210 in TDM mode (e.g. ESP32-S3-Korvo-2) and set the
+            codec_board input mode below to TDM.
+
+    config EXAMPLE_MIC_USE_TDM
+        bool "Record in TDM mode"
+        default n
+
+endmenu

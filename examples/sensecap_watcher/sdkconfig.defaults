@@ -1,0 +1,20 @@
+# The example uses its own copy of the partition table
+CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions.csv"
+
+# SenseCAP Watcher: ESP32-S3 with 8MB octal PSRAM (set by the esp-transcribe defaults)
+# and 32MB quad flash, of which the partition table uses the first 16MB.
+CONFIG_ESPTOOLPY_FLASHMODE_QIO=y
+
+CONFIG_ESP_MAIN_TASK_STACK_SIZE=6144
+
+# Transcribing keeps both cores busy for a few seconds, don't warn about the idle tasks
+CONFIG_ESP_TASK_WDT_CHECK_IDLE_TASK_CPU0=n
+CONFIG_ESP_TASK_WDT_CHECK_IDLE_TASK_CPU1=n
+
+# LVGL: fonts for the UI, and the system heap instead of a static 64KB pool
+# (esp-transcribe already needs 256KB of internal SRAM)
+CONFIG_LV_FONT_MONTSERRAT_18=y
+CONFIG_LV_FONT_MONTSERRAT_28=y
+CONFIG_LV_USE_CLIB_MALLOC=y
+CONFIG_LV_USE_CLIB_STRING=y
+CONFIG_LV_USE_CLIB_SPRINTF=y

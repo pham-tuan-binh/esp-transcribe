@@ -1,0 +1,8 @@
+# esp-transcribe partition table for the SenseCAP Watcher: a bigger app (LVGL + display) + 14MB model.
+# The Watcher has 32MB of flash, but everything stays in the first 16MB so the
+# model can be memory-mapped without 32-bit flash addressing.
+# Name,   Type, SubType,   Offset,  Size,  Flags
+nvs,      data, nvs,       0x9000,  0x6000,
+phy_init, data, phy,       0xf000,  0x1000,
+factory,  app,  factory,   0x10000, 1792K,
+model,    data, undefined, ,        14M,

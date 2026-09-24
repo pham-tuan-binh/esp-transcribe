@@ -1,0 +1,11 @@
+menu "esp-transcribe example"
+
+    config EXAMPLE_MIC_GAIN_DB
+        int "Microphone gain (dB)"
+        range 0 37
+        default 36
+        help
+            Analog gain of the ES7243E microphone ADC. Raise it if you have to
+            speak loudly, lower it if the transcription gets worse when you are close.
+
+endmenu

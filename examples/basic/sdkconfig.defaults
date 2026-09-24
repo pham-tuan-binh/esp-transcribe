@@ -1,0 +1,2 @@
+# The example uses its own copy of the partition table
+CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions.csv"

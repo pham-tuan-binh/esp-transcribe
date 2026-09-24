@@ -1,0 +1,8 @@
+dependencies:
+  # In your own project, use the git source instead (see the README):
+  #   esp-transcribe:
+  #     git: https://github.com/lspr98/conformer-stt-s3.git
+  esp-transcribe:
+    path: ../../..
+  # Same board layer as the LiveKit ESP32 SDK examples
+  tempotian/codec_board: "^2.0.2"

@@ -1,0 +1,137 @@
+menu "esp-transcribe"
+
+    menu "Model"
+
+        config ESP_TRANSCRIBE_MODEL_PARTITION
+            string "Model partition label"
+            default "model"
+            help
+                Label of the data partition that holds the model (needs at least 14MB).
+
+        config ESP_TRANSCRIBE_MODEL_PATH
+            string "Custom model file"
+            default ""
+            help
+                Path to a model file to flash instead of the bundled model/model.bin.
+                Relative paths are resolved against the project directory.
+                Leave empty to use the bundled model.
+
+        config ESP_TRANSCRIBE_FLASH_MODEL
+            bool "Flash the model with `idf.py flash`"
+            default y
+            help
+                Write the model into the model partition as part of `idf.py flash`.
+                The model is ~14MB, so this makes every flash slower. Disable it once
+                the model is on the device and run `idf.py model-flash` (the target is
+                named after the partition) when you need to write it again.
+
+    endmenu
+
+    menu "Default microphone and VAD settings"
+        comment "Used by ESP_TRANSCRIBE_DEFAULT_CONFIG(). Code can still override them."
+
+        config ESP_TRANSCRIBE_I2S_PORT
+            int "I2S port"
+            range 0 1
+            default 0
+
+        config ESP_TRANSCRIBE_I2S_BCLK_GPIO
+            int "I2S bit clock GPIO (INMP441: SCK)"
+            range 0 48
+            default 2
+
+        config ESP_TRANSCRIBE_I2S_WS_GPIO
+            int "I2S word select GPIO (INMP441: WS)"
+            range 0 48
+            default 3
+
+        config ESP_TRANSCRIBE_I2S_DIN_GPIO
+            int "I2S data in GPIO (INMP441: SD)"
+            range 0 48
+            default 1
+
+        config ESP_TRANSCRIBE_GAIN_SHIFT
+            int "Microphone gain shift"
+            range 0 31
+            default 11
+            help
+                Right shift when converting 32-bit microphone samples to 16-bit.
+                Lower is louder: each step down doubles the gain.
+
+        config ESP_TRANSCRIBE_VAD_THRESHOLD
+            int "Sound activity threshold"
+            range 0 32767
+            default 1000
+            help
+                Mean absolute int16 amplitude above which a 360ms chunk counts as sound.
+                Raise it in noisy environments.
+
+        config ESP_TRANSCRIBE_MIN_CHUNKS
+            int "Minimum chunks with sound per utterance"
+            range 1 23
+            default 3
+
+        config ESP_TRANSCRIBE_MAX_CHUNKS
+            int "Maximum chunks per utterance"
+            range 1 23
+            default 23
+            help
+                An utterance is transcribed once it reaches this length (23 chunks = 8.3s).
+                Shorter limits give faster responses.
+
+        config ESP_TRANSCRIBE_EOS_CHUNKS
+            int "Silent chunks that end an utterance"
+            range 2 23
+            default 3
+
+        config ESP_TRANSCRIBE_PRUNE_CHUNKS
+            int "Trailing silent chunks dropped before transcribing"
+            range 0 22
+            default 2
+
+    endmenu
+
+    menu "Tasks"
+
+        config ESP_TRANSCRIBE_DUAL_CORE
+            bool "Use both cores for inference"
+            default y
+            help
+                Split matrix multiplications across both cores, roughly halving the
+                transcription time. Disable to keep the other core free during
+                transcription, e.g. for WiFi or other time-critical work.
+
+        config ESP_TRANSCRIBE_INFERENCE_CORE
+            int "Inference core"
+            range 0 1
+            default 1
+            help
+                Core that runs the model. Audio recording and the dual-core helper run
+                on the other core.
+
+        config ESP_TRANSCRIBE_INFERENCE_PRIORITY
+            int "Inference task priority"
+            range 2 24
+            default 24
+            help
+                Priority of the inference task and the dual-core helper task.
+                Lower it if other tasks (e.g. WiFi at 23) must not be preempted.
+
+        config ESP_TRANSCRIBE_RECORDING_PRIORITY
+            int "Recording task priority"
+            range 1 23
+            default 23
+            help
+                Must be lower than the inference priority.
+
+        config ESP_TRANSCRIBE_TASK_STACK_SIZE
+            int "Task stack size (bytes)"
+            range 4096 32768
+            default 6144
+            help
+                Stack size of each esp-transcribe task. The text and state callbacks
+                run on the inference task, so increase this if they need more stack.
+
+    endmenu
+
+endmenu

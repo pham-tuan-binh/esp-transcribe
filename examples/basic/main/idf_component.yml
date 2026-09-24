@@ -1,0 +1,6 @@
+dependencies:
+  # In your own project, use the git source instead (see the README):
+  #   esp-transcribe:
+  #     git: https://github.com/lspr98/conformer-stt-s3.git
+  esp-transcribe:
+    path: ../../..

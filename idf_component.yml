@@ -1,0 +1,29 @@
+version: "1.0.0"
+description: On-device English speech-to-text for the ESP32-S3 (quantized 13M parameter conformer-CTC model)
+url: https://github.com/lspr98/conformer-stt-s3
+repository: https://github.com/lspr98/conformer-stt-s3.git
+license: Apache-2.0
+tags:
+  - speech-recognition
+  - stt
+  - asr
+  - voice
+targets:
+  - esp32s3
+dependencies:
+  idf:
+    version: ">=6.1.0"
+  # Hardware-accelerated FFT
+  espressif/esp-dsp: "^1.8.2"
+  # Record devices, see esp_transcribe_codec_dev.h (same as the LiveKit ESP32 SDK)
+  espressif/esp_codec_dev:
+    version: ">=1.3,<2"
+    public: true
+files:
+  exclude:
+    - ".claude/**"
+    - "examples/**/build/**"
+    - "examples/**/managed_components/**"
+    - "examples/**/sdkconfig"
+    - "examples/**/sdkconfig.old"
+    - "examples/**/dependencies.lock"

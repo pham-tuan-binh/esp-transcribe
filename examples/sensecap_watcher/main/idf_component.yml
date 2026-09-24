@@ -1,0 +1,12 @@
+dependencies:
+  # In your own project, use the git source instead (see the README):
+  #   esp-transcribe:
+  #     git: https://github.com/lspr98/conformer-stt-s3.git
+  esp-transcribe:
+    path: ../../..
+  # ES7243E microphone ADC
+  espressif/esp_codec_dev: ">=1.3,<2"
+  # 412x412 round QSPI display
+  espressif/esp_lcd_spd2010: "^2.0.0"
+  espressif/esp_lvgl_port: "^2.6.0"
+  lvgl/lvgl: "^9.2.0"
